@@ -16,7 +16,7 @@ I will provide you with the text of a legal case. Once I provide the case, you w
 
 Provide a brief summary of the case. **Your summary must begin with the case name as an h3 header.**
 
-After the header, organize your summary into the following four sections. **All other text in your response (for both Request 1 and Request 2) should be normal paragraph text, not headers.** You should, however, continue to use formatting such as **bolding** (e.g., for section titles like **Facts:**), _italics_, and lists as appropriate for clarity.
+After the header, organize your summary into the following four sections. **All other text in your response (for both Request 1 and Request 2) should be organized as lists.** You should use formatting such as **bolding** (e.g., for section titles like **Facts:**) and _italics_ as appropriate for clarity.
 
 - **Facts:** A concise overview of the relevant facts of the case.
 - **Holding:** The court's final decision or answer to the question presented.

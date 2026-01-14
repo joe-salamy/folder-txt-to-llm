@@ -1,9 +1,8 @@
-import os
-import sys
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import google.generativeai as genai
 from dotenv import load_dotenv
+import pypdf
 
 # Import configuration
 from config import *
@@ -13,8 +12,23 @@ load_dotenv()
 
 
 def read_file(filepath):
-    """Read and return the contents of a file."""
+    """Read and return the contents of a file.
+
+    Supports: .txt, .md, .pdf
+    """
     try:
+        filepath = Path(filepath)
+
+        # Handle PDF files
+        if filepath.suffix.lower() == ".pdf":
+            with open(filepath, "rb") as f:
+                reader = pypdf.PdfReader(f)
+                text = ""
+                for page in reader.pages:
+                    text += page.extract_text() + "\n"
+                return text
+
+        # Handle text files
         with open(filepath, "r", encoding="utf-8") as f:
             return f.read()
     except Exception as e:
@@ -31,7 +45,7 @@ def process_file_with_gemini(txt_content, system_prompt, api_key):
         )
 
         generation_config = genai.types.GenerationConfig(
-            max_output_tokens=9000  # Approximately 6000 words (1.5 tokens per word)
+            # response_mime_type="application/json",
         )
 
         response = model.generate_content(
@@ -58,6 +72,7 @@ def process_single_file(txt_file, output_folder, system_prompt, api_key, total_f
 
         # Save output
         output_file = output_folder / f"{txt_file.stem}.md"
+        # output_file = output_folder / f"{txt_file.stem}.json"
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(result)
         print(f"    ✓ Saved: {output_file.name}")
@@ -68,20 +83,24 @@ def process_single_file(txt_file, output_folder, system_prompt, api_key, total_f
         return False
 
 
-def process_class(class_folder, prompt_file, api_key):
-    """Process all files for a single class."""
-    input_folder = Path(class_folder) / INPUT_FOLDER_NAME
-    output_folder = Path(class_folder) / OUTPUT_FOLDER_NAME
+def process_files(prompt_file, api_key):
+    """Process all files from the single input folder."""
+    input_folder = Path(INPUT_FOLDER_NAME)
+    output_folder = Path(OUTPUT_FOLDER_NAME)
 
     # Validate input folder
     if not input_folder.exists():
-        print(f"  Input folder '{input_folder}' does not exist - skipping")
+        print(f"Error: Input folder '{input_folder}' does not exist")
         return
 
-    # Get all txt files
-    txt_files = list(input_folder.glob("*.txt"))
+    # Get all txt, md, and pdf files
+    txt_files = (
+        list(input_folder.glob("*.txt"))
+        + list(input_folder.glob("*.md"))
+        + list(input_folder.glob("*.pdf"))
+    )
     if not txt_files:
-        print(f"  No txt files found - skipping")
+        print(f"No txt, md, or pdf files found in input folder")
         return
 
     # Read system prompt
@@ -92,15 +111,16 @@ def process_class(class_folder, prompt_file, api_key):
     # Create output folder if it doesn't exist
     output_folder.mkdir(parents=True, exist_ok=True)
 
-    print(f"  Found {len(txt_files)} txt file(s) to process")
-    print(f"  Output will be saved to: {output_folder}\n")
-    print(f"  Processing with {MAX_WORKERS} concurrent workers\n")
+    print(f"Found {len(txt_files)} file(s) to process")
+    print(f"Input folder:  {input_folder}")
+    print(f"Output folder: {output_folder}\n")
+    print(f"Processing with {MAX_WORKERS} concurrent workers\n")
 
     # Process files in parallel
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = []
         for txt_file in txt_files:
-            print(f"  Queuing: {txt_file.name}")
+            print(f"Queuing: {txt_file.name}")
             future = executor.submit(
                 process_single_file,
                 txt_file,
@@ -115,42 +135,4 @@ def process_class(class_folder, prompt_file, api_key):
         for future in futures:
             future.result()
 
-    print("\nCompleted processing all files for this class.")
-
-
-def main():
-    # Get API key from environment variable
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        print("Error: GEMINI_API_KEY not found in .env file")
-        print("Please create a .env file with: GEMINI_API_KEY=your_api_key_here")
-        sys.exit(1)
-
-    # Get prompt file path
-    script_dir = Path(__file__).parent
-    prompt_file = script_dir / "prompts" / PROMPT_FILE
-
-    # Validate prompt file
-    if not prompt_file.exists():
-        print(f"Error: Prompt file '{PROMPT_FILE}' not found at '{prompt_file}'")
-        sys.exit(1)
-
-    print(f"System prompt loaded from: {prompt_file}")
-    print(f"Processing {len(CLASSES)} class(es)\n")
-    print("=" * 60)
-
-    # Process each class
-    for class_folder in CLASSES:
-        class_name = Path(class_folder).parent.name  # Get the class name from path
-        print(f"\n{'=' * 60}")
-        print(f"PROCESSING: {class_name}")
-        print("=" * 60)
-        process_class(class_folder, prompt_file, api_key)
-
-    print("\n" + "=" * 60)
-    print("All classes processed!")
-    print("=" * 60)
-
-
-if __name__ == "__main__":
-    main()
+    print("\nCompleted processing all files.")
